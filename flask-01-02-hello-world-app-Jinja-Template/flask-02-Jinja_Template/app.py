@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def head():
-    return render_template("index.html", number1 = 34, number2 = 45)
+    return render_template("index.html", num1 = 34, num2 = 45)
 
 @app.route("/function")
 def function():
@@ -17,5 +17,5 @@ def function():
     return render_template("body.html", num1 = variable1, num2= variable2, multp = variable1 * variable2)
 
 if __name__=="__main__":
-    # app.run(debug=True)
-    app.run(host="0.0.0.0",port=80)
+     app.run(debug=True)
+    # app.run(host="0.0.0.0",port=80)
