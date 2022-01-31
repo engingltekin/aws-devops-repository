@@ -14,15 +14,16 @@ Resources:
         - Key: Name
           Value: Week-2-Project-Stack-Instance
       UserData: 
-        Fn::Base64: | 
-          #!/bin/bash 
-          yum update -y
-          yum install -y httpd
-          cd /var/www/html
-          wget https://raw.githubusercontent.com/hkn-asln/my-projects/main/aws/projects/Project-101-kittens-carousel-static-website-ec2/static-web/index.html
-          wget https://raw.githubusercontent.com/hkn-asln/my-projects/main/aws/projects/Project-101-kittens-carousel-static-website-ec2/static-web/cat0.jpg
-          wget https://raw.githubusercontent.com/hkn-asln/my-projects/main/aws/projects/Project-101-kittens-carousel-static-website-ec2/static-web/cat1.jpg
-          wget https://raw.githubusercontent.com/hkn-asln/my-projects/main/aws/projects/Project-101-kittens-carousel-static-website-ec2/static-web/cat2.jpg
-          wget https://raw.githubusercontent.com/hkn-asln/my-projects/main/aws/projects/Project-101-kittens-carousel-static-website-ec2/static-web/cat3.jpg
-          systemctl enable httpd
-          systemctl start httpd
+        Fn::Base64: 
+          !Sub | 
+            #!/bin/bash 
+            yum update -y
+            yum install -y httpd
+            cd /var/www/html
+            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/index.html
+            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat0.jpg
+            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat1.jpg
+            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat2.jpg
+            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat3.png
+            systemctl enable httpd
+            systemctl start httpd
