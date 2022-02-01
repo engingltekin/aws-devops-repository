@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
-  This template launches an EC2 with a security group that enables SSH
+  This template launches an EC2 instance to deploy web app by using CFN.
 Resources:
   MyEc2:
     Type: AWS::EC2::Instance
@@ -21,9 +21,13 @@ Resources:
             yum install -y httpd
             cd /var/www/html
             wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/index.html
-            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat0.jpg
-            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat1.jpg
-            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat2.jpg
-            wget https://github.com/engingltekin/aws-devops-repository/blob/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat3.png
+            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat0.jpg
+            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat1.jpg
+            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat2.jpg
+            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat3.png
             systemctl enable httpd
             systemctl start httpd
+Outputs:
+  WebisteUrl: 
+    Description: Kittenn Carousel's URL address
+    Value: !GetAtt MyEc2.PublicDnsName
