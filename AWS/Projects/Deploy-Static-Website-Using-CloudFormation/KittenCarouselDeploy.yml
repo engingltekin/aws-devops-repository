@@ -1,3 +1,4 @@
+#use an existing security group
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
   This template launches an EC2 instance to deploy web app by using CFN.
@@ -12,7 +13,7 @@ Resources:
         - launch-wizard-5 # security group name that allows SSH
       Tags:
         - Key: Name
-          Value: Week-2-Project-Stack-Instance
+          Value: !Sub Web Server of ${AWS::StackName} Stack 
       UserData: 
         Fn::Base64: 
           !Sub | 
@@ -20,14 +21,17 @@ Resources:
             yum update -y
             yum install -y httpd
             cd /var/www/html
-            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/index.html
-            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat0.jpg
-            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat1.jpg
-            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat2.jpg
-            wget https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web/cat3.png
+            FOLDER=" https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web"
+            wget ${FOLDER}/index.html
+            wget ${FOLDER}/cat0.jpg
+            wget ${FOLDER}/cat1.jpg
+            wget ${FOLDER}/cat2.jpg
+            wget ${FOLDER}/cat3.png
             systemctl enable httpd
             systemctl start httpd
 Outputs:
   WebisteUrl: 
+    Value: !Sub 
+      - http://${PublicAddress}
+      - PublicAddress: !GetAtt MyEc2.PublicDnsName
     Description: Kittenn Carousel's URL address
-    Value: !GetAtt MyEc2.PublicDnsName
