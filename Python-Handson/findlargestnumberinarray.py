@@ -1,4 +1,11 @@
-from array import array
+
+devops_tools = ("Docker" "Kubernetes")
+devops_tools1 = ["Docker" "Kubernetes"]
+
+for x in devops_tools:
+    print(x)
+for x in devops_tools1:
+    print(x)
 
 data = []
 largestNumber = 0
