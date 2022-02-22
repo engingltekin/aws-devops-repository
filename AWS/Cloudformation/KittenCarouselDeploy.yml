@@ -1,0 +1,37 @@
+#use an existing security group
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  This template launches an EC2 instance to deploy web app by using CFN.
+Resources:
+  MyEc2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0a8b4cd432b1c3063 # most recent ami id of Amazon Linux2
+      InstanceType: t2.micro
+      KeyName: Engin_Linux # pem file name without extension
+      SecurityGroups:
+        - launch-wizard-5 # security group name that allows SSH
+      Tags:
+        - Key: Name
+          Value: !Sub Web Server of ${AWS::StackName} Stack 
+      UserData: 
+        Fn::Base64: 
+          !Sub | 
+            #!/bin/bash 
+            yum update -y
+            yum install -y httpd
+            cd /var/www/html
+            FOLDER=" https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Deploy-Static-Website-Using-CloudFormation/static-web"
+            wget ${FOLDER}/index.html
+            wget ${FOLDER}/cat0.jpg
+            wget ${FOLDER}/cat1.jpg
+            wget ${FOLDER}/cat2.jpg
+            wget ${FOLDER}/cat3.png
+            systemctl enable httpd
+            systemctl start httpd
+Outputs:
+  WebisteUrl: 
+    Value: !Sub 
+      - http://${PublicAddress}
+      - PublicAddress: !GetAtt MyEc2.PublicDnsName
+    Description: Kittenn Carousel's URL address

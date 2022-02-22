@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AutoScaling Group with Launch Template and Scaling Policy
+  
+Parameters:
+  pVPC:
+    Description: VPC for EC2 Instances
+    Type: AWS::EC2::VPC::Id
+  pInstanceType:
+    Description: Instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t3.micro
+    - t2.nano
+    - t3.nano
+  pKeyName:
+    Description: Key name for EC2
+    Type: AWS::EC2::KeyPair::KeyName
+  pSubnetList:
+    Description: List of subnets for load balancer
+    Type: List<AWS::EC2::Subnet::Id>
+    
+#Mappings:
+    
+Resources:
+  rSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH and HTTP # Required
+      GroupName: Engin-SG-ASG
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 22
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 80
+        ToPort: 80
+      VpcId: !Ref pVPC
+  rTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref pVPC
+  rLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData: 
+        ImageId: ami-0dc2d3e4c0f9ebd18
+        InstanceType: !Ref pInstanceType
+        KeyName: !Ref pKeyName
+        SecurityGroupIds: 
+          - !GetAtt rSG.GroupId
+        UserData: !Base64 |
+          #! /bin/bash
+          yum update -y
+          yum install -y httpd
+          TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
+          && PRIVATE_IP=`curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4`
+          TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
+          && PUBLIC_IP=`curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4` 
+          DATE_TIME=`date`
+          chmod -R 777 /var/www/html
+          echo "<html>
+          <head>
+              <title> Congratulations! You have created an instance from Launch Template</title>
+          </head>
+          <body>
+              <h1>This web server is launched from launch template by Altaz</h1>
+              <p>This instance is created at <b>$DATE_TIME</b></p>
+              <p>Private IP address of this instance is <b>$PRIVATE_IP</b></p>
+              <p>Public IP address of this instance is <b>$PUBLIC_IP</b></p>
+          </body>
+          </html>" > /var/www/html/index.html
+          systemctl start httpd
+          systemctl enable httpd
+  rCPUPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref rASG # Required
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification: 
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 60.0
+  rASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        !GetAZs
+      DesiredCapacity: "2"
+      HealthCheckGracePeriod: 90
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref rLT
+        Version: !GetAtt rLT.LatestVersionNumber
+      MaxSize: "3" # Required
+      MinSize: "1" # Required
+      TargetGroupARNs:
+      - !Ref rTG
+  rListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions: # Required
+      - TargetGroupArn: !Ref rTG
+        Type: forward
+      LoadBalancerArn: !Ref rLoadBalancer  # Required
+      Port: 80
+      Protocol: HTTP
+  rLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups:
+      - !GetAtt rSG.GroupId
+      Subnets: !Ref pSubnetList
+      Type: application      
+Outputs:
+  oAppUrl:
+    Description: URL of the Application (or ALB)
+    Value: !Join
+     - ''
+     - - 'http://'
+       - !GetAtt rLoadBalancer.DNSName
