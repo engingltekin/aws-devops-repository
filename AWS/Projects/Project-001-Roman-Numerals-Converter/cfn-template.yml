@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+    CloudFormation Template for Roman Numerals Converter Application. This template creates Python Flask Web Application on Amazon Linux 2 (ami-033b95fb8079dc481) EC2 Instance with custom security group allowing http connections on port 80 and SSH connection on port 22. Roman Numerals Converter Application is downloaded from Github repository, then installed on Flask.
+Parameters:
+  pVPC:
+    Description: VPC for EC2 Instances
+    Type: AWS::EC2::VPC::Id
+  pInstanceType:
+    Description: Instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t3.micro
+    - t2.nano
+    - t3.nano  
+  pKeyName:
+    Description: Please select Key Pair for SSH connection
+    Type: AWS::EC2::KeyPair::KeyName
+Resources:  
+  rSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH and HTTP # Required
+      GroupName: Engin-SG-ASG
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 22
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 80
+        ToPort: 80
+      VpcId: !Ref pVPC
+  rLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData: 
+        ImageId: ami-033b95fb8079dc481
+        InstanceType: !Ref pInstanceType
+        KeyName: !Ref pKeyName
+        SecurityGroupIds: 
+          - !GetAtt rSG.GroupId
+
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install python3 -y
+          pip3 install flask
+          cd /home/ec2-user
+          FOLDER="https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Project-001-Roman-Numerals-Converter"
+          wget  ${FOLDER}/app.py
+          mkdir templates && cd templates
+          wget  ${FOLDER}/templates/index.html
+          wget  ${FOLDER}/templates/result.html
+          cd ..
+          python3 app.py
+  WebServerHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref rLT
+        Version: !GetAtt  rLT.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: Web Server of ${AWS::StackName} Stack  
+Outputs:
+  WebsiteURL:
+    Value: !Sub
+      - http://${PublicAddress}
+      - PublicAddress: !GetAtt WebServerHost.PublicDnsName
+    Description: Roman Numerals Converter Application URL
