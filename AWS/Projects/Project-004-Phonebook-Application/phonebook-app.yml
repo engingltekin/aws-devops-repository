@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Phonebook Application (Python Flask) deployed on AWS Application Load Balancer with Auto Scaling and Relational Database Service using AWS Cloudformation
+Parameters:
+  pVPC:
+    Description: VPC 
+    Type: AWS::EC2::VPC::Id
+  pKeyName:
+    Description: Key Pair
+    Type: AWS::EC2::KeyPair::KeyName
+  pInstanceType:
+    Description: Instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t3.micro
+    - t2.nano
+    - t3.nano  
+  pSubnetList:
+    Description: List of subnets for load balancer
+    Type: List<AWS::EC2::Subnet::Id>
+  EnvironmentType:
+    Description: 'Specify the Environment type of the stack.'
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod  
+  DBInstanceIdentifier:
+    Type: String
+    Default: 'RDS-mysql'
+  DBName:
+    Type: String
+    Default: 'clarusway'  
+  
+  DBUsername:
+    NoEcho: 'true'
+    Description: Username for mysql database access
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
+    Default: 'mysql'
+  DBPassword:
+    NoEcho: 'true'
+    Description: Password mysql database access
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Must contain only alphanumeric characters.    
+Resources:
+  rSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group with Inbound SSH and HTTP
+      GroupName: SecGrp-ASG
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 22
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 80
+        ToPort: 80
+      VpcId: !Ref pVPC
+  rTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      Protocol: HTTP                                  
+      Port: 80
+      VpcId: !Ref pVPC
+  rLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      Properties: 
+        LaunchTemplateData: 
+          ImageId: ami-033b95fb8079dc481
+          InstanceType: !Ref pInstanceType
+          KeyName: !Ref pKeyName
+          SecurityGroupIds: 
+            - !GetAtt rSG.GroupId
+          UserData: !Base64 |
+            #!/bin/bash
+            yum update -y
+            yum install git -y
+            yum install python3 -y
+            pip3 install pymysql
+            pip3 install flask
+            pip3 install flask-mysql
+            cd /home/ec2-user
+            FOLDER="https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Project-004-Phonebook-Application"
+            wget  ${FOLDER}/phonebook-app.py
+            mkdir templates && cd templates
+            wget  ${FOLDER}/templates/index.html
+            wget  ${FOLDER}/templates/delete.html
+            wget  ${FOLDER}/templates/add-update.html
+            cd ..
+            python3 phone-book.py
+  rASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        !GetAZs
+      DesiredCapacity: "2"
+      HealthCheckGracePeriod: 90
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref rLT
+        Version: !GetAtt rLT.LatestVersionNumber
+      MaxSize: "3" # Required
+      MinSize: "1" # Required
+      TargetGroupARNs:
+      - !Ref rTG
+  rListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions: # Required
+      - TargetGroupArn: !Ref rTG
+        Type: forward
+      LoadBalancerArn: !Ref rLoadBalancer  # Required
+      Port: 80
+      Protocol: HTTP
+  rLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups:
+      - !GetAtt rSG.GroupId
+      Subnets: !Ref pSubnetList
+      Type: application    
+  rRDS:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t2.micro
+      Engine: mysql
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [ webapp-rds, !Ref EnvironmentType ] ]
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+Outputs:
+  oAppUrl:
+    Description: URL of the Application (or ALB)
+    Value: !Join
+     - ''
+     - - 'http://'
+       - !GetAtt rLoadBalancer.DNSName
