@@ -53,7 +53,7 @@ Parameters:
     AllowedPattern: '[a-zA-Z0-9]*'
     ConstraintDescription: Must contain only alphanumeric characters.    
 Resources:
-  rSG:
+  rSGWebServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group with Inbound SSH and HTTP
@@ -68,6 +68,17 @@ Resources:
         FromPort: 80
         ToPort: 80
       VpcId: !Ref pVPC
+  rSGALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group with Inbound SSH and HTTP
+      GroupName: SecGrp-ASGALB
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp # Required
+        FromPort: 80
+        ToPort: 80
+      VpcId: !Ref pVPC      
   rTG:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -80,31 +91,29 @@ Resources:
       VpcId: !Ref pVPC
   rLT:
     Type: AWS::EC2::LaunchTemplate
-    Properties:
-      Properties: 
-        LaunchTemplateData: 
-          ImageId: ami-033b95fb8079dc481
-          InstanceType: !Ref pInstanceType
-          KeyName: !Ref pKeyName
-          SecurityGroupIds: 
-            - !GetAtt rSG.GroupId
-          UserData: !Base64 |
-            #!/bin/bash
-            yum update -y
-            yum install git -y
-            yum install python3 -y
-            pip3 install pymysql
-            pip3 install flask
-            pip3 install flask-mysql
-            cd /home/ec2-user
-            FOLDER="https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Project-004-Phonebook-Application"
-            wget  ${FOLDER}/phonebook-app.py
-            mkdir templates && cd templates
-            wget  ${FOLDER}/templates/index.html
-            wget  ${FOLDER}/templates/delete.html
-            wget  ${FOLDER}/templates/add-update.html
-            cd ..
-            python3 phone-book.py
+    Properties: 
+      LaunchTemplateData: 
+        ImageId: ami-033b95fb8079dc481
+        InstanceType: !Ref pInstanceType
+        KeyName: !Ref pKeyName
+        SecurityGroupIds: 
+          - !GetAtt rSGWebServer.GroupId
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install python3 -y
+          pip3 install flask
+          pip3 install flask-mysql
+          cd /home/ec2-user
+          echo "$(!GetAtt rRDS.Endpoint.Address)" > /home/ec2-user/dbserver.endpoint
+          FOLDER="https://raw.githubusercontent.com/engingltekin/aws-devops-repository/main/AWS/Projects/Project-004-Phonebook-Application"
+          wget  ${FOLDER}/phonebook-app.py
+          mkdir templates && cd templates
+          wget  ${FOLDER}/templates/index.html
+          wget  ${FOLDER}/templates/delete.html
+          wget  ${FOLDER}/templates/add-update.html
+          cd ..
+          python3 phonebook-app.py
   rASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -133,7 +142,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       SecurityGroups:
-      - !GetAtt rSG.GroupId
+      - !GetAtt rSGALB.GroupId
       Subnets: !Ref pSubnetList
       Type: application    
   rRDS:
@@ -143,14 +152,15 @@ Resources:
       AllocatedStorage: '20'
       DBInstanceClass: db.t2.micro
       Engine: mysql
+      EngineVersion: 8.0.19
       DBName: !Ref DBName
       MasterUsername: !Ref DBUsername
       MasterUserPassword: !Ref DBPassword
+      DeletionProtection: false
+      PubliclyAccessible: true
       Tags:
         - Key: Name
           Value: !Join [ '-', [ webapp-rds, !Ref EnvironmentType ] ]
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
 Outputs:
   oAppUrl:
     Description: URL of the Application (or ALB)
