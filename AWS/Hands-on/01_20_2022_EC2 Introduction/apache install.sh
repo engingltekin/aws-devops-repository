@@ -6,7 +6,7 @@
 
 - Part 2 - Launching an Amazon Linux 2 EC2 instance and Connect with SSH
 
-- Part 3 - Installing and Configuring Apache Web Server to Run a Sample static Website Page
+- Part 3 - Installing and Configuring Apache Web Server to Run `Hello World` Page
 
 - Part 4 - Automation of Web Server Installation through Bash Script
 
