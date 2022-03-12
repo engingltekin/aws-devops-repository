@@ -16,4 +16,5 @@ for product in products:
     else:
         grouped_products[product] +=1    
 #print keys if count is 1
-print ({k for (k,v) in grouped_products.items() if v==1})
+
+print ([k for (k,v) in grouped_products.items() if v==1])
