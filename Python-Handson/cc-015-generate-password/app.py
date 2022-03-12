@@ -1,5 +1,6 @@
 import random
 import string
+
 #Receive user input user name 
 username = input("Please enter your full name:")
 
