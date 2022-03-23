@@ -1,0 +1,1340 @@
+Outputs: {}
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  InstanceTypeFamily:
+    NoEcho: 'true'
+    Type: String
+    Description: WebServer EC2 instance type family
+  LogPublicationControl:
+    NoEcho: 'true'
+    Type: String
+    Description: If true customer service logs will be published to S3.
+    AllowedValues:
+    - 'true'
+    - 'false'
+    ConstraintDescription: must be Boolean.
+    Default: 'false'
+  DocumentRoot:
+    NoEcho: 'true'
+    Type: String
+    Description: Enables you to specify the child directory of your project that is
+      treated as the public-facing web root. If your root document is stored in your
+      project directory, leave this set to "/". If your root document is inside a
+      child directory (e.g., <project>/public), set this value to match the child
+      directory. Values should begin with a "/" character, and may NOT begin with
+      a "." character.
+    Default: ''
+  InstancePort:
+    NoEcho: 'true'
+    Type: String
+    Description: Listen Port
+    Default: '80'
+  XRayEnabled:
+    NoEcho: 'true'
+    Type: String
+    Description: Enables AWS X-Ray for your environment.
+    Default: 'false'
+  DisplayErrors:
+    NoEcho: 'true'
+    Type: String
+    Description: Specifies whether error messages should be part of the output. (This
+      value is written to the php.ini file.)
+    Default: 'Off'
+  AWSEBEnvironmentId:
+    NoEcho: 'true'
+    Type: String
+  HooksPkgUrl:
+    NoEcho: 'true'
+    Type: String
+    Description: Hooks package URL
+    Default: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/lib/hooks.tar.gz
+  ZlibOutputCompression:
+    NoEcho: 'true'
+    Type: String
+    Description: Specifies whether PHP should use compression for output. (This value
+      is written to the php.ini file.)
+    Default: 'Off'
+  AWSEBEnvironmentName:
+    NoEcho: 'true'
+    Type: String
+  AWSEBReferrerId:
+    NoEcho: 'true'
+    Type: String
+    Default: ''
+  AppSource:
+    NoEcho: 'true'
+    Type: String
+    Description: The url of the application source.
+    Default: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/sampleapp/EBSampleApp-PHP.zip
+  MaxExecutionTime:
+    NoEcho: 'true'
+    Type: Number
+    Description: Sets the maximum time, in seconds, a script is allowed to run before
+      it is terminated by the environment. This helps prevent poorly written scripts
+      from tying up the server.
+    Default: 60
+  ProxyServer:
+    NoEcho: 'true'
+    Type: String
+    Description: Application Proxy Server
+    Default: nginx
+  MemoryLimit:
+    NoEcho: 'true'
+    Type: String
+    Description: Specifies the amount of memory allocated to the PHP environment.
+      (This value is written to the php.ini file.)
+    Default: 256M
+  EnvironmentVariables:
+    NoEcho: 'true'
+    Type: CommaDelimitedList
+    Description: Program environment variables.
+    Default: ''
+  AllowUrlFopen:
+    NoEcho: 'true'
+    Type: String
+    Description: Specifies whether the PHP's file functions are allowed to retrieve
+      data from remote locations, such as websites or FTP servers. (This value is
+      written to the php.ini file.)
+    Default: 'On'
+  AWSEBAgentId:
+    NoEcho: 'true'
+    Type: String
+    Default: ''
+  ComposerOptions:
+    NoEcho: 'true'
+    Type: String
+    Description: Sets custom options to use when installing dependencies using Composer
+      through composer.phar install
+    Default: ''
+  InstanceType:
+    NoEcho: 'true'
+    Type: String
+    Description: WebServer EC2 instance type
+    ConstraintDescription: must be a valid EC2 instance type.
+  AWSEBEnvironmentBucket:
+    NoEcho: 'true'
+    Type: String
+  ProxyStaticFiles:
+    NoEcho: 'true'
+    Type: CommaDelimitedList
+    Description: A mapping from virtual path to physical path.
+    Default: ''
+Resources:
+  AWSEBV2LoadBalancer:
+    Properties:
+      SecurityGroups:
+      - Ref: AWSEBLoadBalancerSecurityGroup
+      Subnets:
+      - subnet-0f00aca23c7b10108
+      - subnet-0a462ca1e9f0dd616
+      - subnet-08bd3c2c43a67d93b
+      - subnet-01ef9c1e051ff7c0d
+      - subnet-09938cf4b9ad0ab04
+      - subnet-021af730b22d3c6a6
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  AWSEBV2LoadBalancerListener:
+    Properties:
+      LoadBalancerArn:
+        Ref: AWSEBV2LoadBalancer
+      DefaultActions:
+      - TargetGroupArn:
+          Ref: AWSEBV2LoadBalancerTargetGroup
+        Type: forward
+      Port: 80
+      Protocol: HTTP
+    Type: AWS::ElasticLoadBalancingV2::Listener
+  AWSEBLoadBalancerSecurityGroup:
+    Properties:
+      GroupDescription: Elastic Beanstalk created security group used when no ELB
+        security groups are specified during ELB creation
+      VpcId: vpc-065740f91024a5ae2
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: '80'
+        ToPort: '80'
+        IpProtocol: tcp
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: '80'
+        ToPort: '80'
+        IpProtocol: tcp
+    Type: AWS::EC2::SecurityGroup
+  AWSEBSecurityGroup:
+    Properties:
+      GroupDescription: SecurityGroup for ElasticBeanstalk environment.
+      SecurityGroupIngress:
+      - FromPort: '80'
+        ToPort: '80'
+        IpProtocol: tcp
+        SourceSecurityGroupId:
+          Ref: AWSEBLoadBalancerSecurityGroup
+    Type: AWS::EC2::SecurityGroup
+  AWSEBAutoScalingScaleDownPolicy:
+    Properties:
+      ScalingAdjustment: "-1"
+      AutoScalingGroupName:
+        Ref: AWSEBAutoScalingGroup
+      AdjustmentType: ChangeInCapacity
+    Type: AWS::AutoScaling::ScalingPolicy
+  AWSEBInstanceLaunchWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  AWSEBAutoScalingGroup:
+    Metadata:
+      ForcingMetadataUpdate: Changing something in the metadata will force re-compuation
+      AWS::CloudFormation::Init:
+        Infra-WriteTailLogsConf:
+          files:
+            "/opt/elasticbeanstalk/tasks/taillogs.d/eb-activity.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-commandprocessor.log"
+                  - "/var/log/eb-activity.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/taillogs.d/eb-version-deployment.conf":
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-version-deployment.log"
+                  - ''
+        Infra-WriteBundleLogsConf:
+          files:
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/eb-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-cfn-init*"
+                  - "/var/log/eb-tools*"
+                  - "/var/log/eb-publish-logs*"
+                  - "/var/log/eb-commandprocessor*"
+                  - "/var/log/eb-activity*"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/cfn-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cfn-hup*"
+                  - "/var/log/cfn-init*"
+                  - "/var/log/cfn-wire*"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/eb-version-deployment.conf":
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-version-deployment.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/cloud-init-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cloud-init*"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cron"
+                  - "/var/log/messages"
+                  - "/var/log/yum.log"
+                  - ''
+        InfoTask-TailLogs:
+          commands:
+            taillogs:
+              command:
+                Fn::Join:
+                - ''
+                - - 'tailLogs.py --concatenate --conf-path ''/opt/elasticbeanstalk/tasks/taillogs.d/*''
+                    --location-prefix '
+                  - Fn::FindInMap:
+                    - EnvironmentInfoTasks
+                    - tail
+                    - LocationPrefix
+        prebuild_0_Test_App:
+          files:
+            "/opt/elasticbeanstalk/tasks/taillogs.d/01-sample-app.conf":
+              content: "/tmp/sample-app.log\n"
+            "/opt/elasticbeanstalk/tasks/bundlelogs.d/01-sample-app.conf":
+              content: "/tmp/sample-app*\n"
+        InfoTask-BundleLogs:
+          commands:
+            bundlelogs:
+              command:
+                Fn::Join:
+                - ''
+                - - 'bundleLogs.py --conf-path ''/opt/elasticbeanstalk/tasks/bundlelogs.d/*''
+                    --location-prefix '
+                  - Fn::FindInMap:
+                    - EnvironmentInfoTasks
+                    - bundle
+                    - LocationPrefix
+        AWSEBCfnHupEndpointOverride:
+          files:
+            "/etc/cfn/endpoints-override.json":
+              mode: '000644'
+              owner: root
+              content:
+                Fn::Join:
+                - ''
+                - - "{"
+                  - "\n"
+                  - '  "Services": {'
+                  - "\n"
+                  - '    "AmazonS3": {'
+                  - "\n"
+                  - '      "Endpoints": ['
+                  - "\n"
+                  - '          { "Region": "us-east-1", "Hostname": "s3.amazonaws.com",
+                    "Default": true },'
+                  - "\n"
+                  - '          { "Region": "us-east-1", "Hostname": "s3-external-1.amazonaws.com"
+                    },'
+                  - "\n"
+                  - '          { "Region": "us-east-1", "Hostname": "s3-external-2.amazonaws.com"
+                    }'
+                  - "\n"
+                  - "      ]"
+                  - "\n"
+                  - "    },"
+                  - "\n"
+                  - '    "AmazonSQS": {'
+                  - "\n"
+                  - '      "Endpoints": ['
+                  - "\n"
+                  - "      ]"
+                  - "\n"
+                  - "    }"
+                  - "\n"
+                  - "  }"
+                  - "\n"
+                  - "}"
+                  - "\n"
+              group: root
+          commands:
+            clearbackupfiles:
+              command: rm -f /etc/cfn/endpoints-override.json.bak*
+        prebuild_1_Test_App:
+          cron:
+          - schedule: "*/1 * * * *"
+            name: task1
+            url: "/scheduled.php"
+          version: 1
+        AWSEBBaseConfig:
+          files:
+            "/opt/elasticbeanstalk/config/ebenvinfo/resource":
+              mode: '000440'
+              owner: root
+              content: AWSEBAutoScalingGroup
+              group: root
+            "/opt/elasticbeanstalk/config/platformconfig/guid.json":
+              mode: '000440'
+              owner: root
+              source: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/configs/guid.json
+              group: root
+            "/opt/elasticbeanstalk/config/platformconfig/eventmessages.txt":
+              mode: '000440'
+              owner: root
+              source: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/configs/eventmessages.txt
+              group: root
+            "/opt/elasticbeanstalk/config/ebenvinfo/envid":
+              mode: '000440'
+              owner: root
+              content:
+                Ref: AWSEBEnvironmentId
+              group: root
+            "/opt/elasticbeanstalk/config/ebenvinfo/envbucket":
+              mode: '000440'
+              owner: root
+              content:
+                Ref: AWSEBEnvironmentBucket
+              group: root
+            "/opt/elasticbeanstalk/config/platformconfig/generalconfig.json":
+              mode: '000440'
+              owner: root
+              source: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/configs/generalconfig.json
+              group: root
+            "/opt/elasticbeanstalk/config/ebenvinfo/launchwaithandle":
+              mode: '000440'
+              owner: root
+              content:
+                Ref: AWSEBInstanceLaunchWaitHandle
+              group: root
+            "/opt/elasticbeanstalk/config/platformconfig/platformconfig.json":
+              mode: '000440'
+              owner: root
+              source: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/configs/platformconfig.json
+              group: root
+            "/opt/elasticbeanstalk/config/healthd/healthdendpoint":
+              mode: '000440'
+              owner: root
+              content:
+                Fn::Join:
+                - ''
+                - - "{"
+                  - '"healthd_endpoint":'
+                  - "\""
+                  - Fn::FindInMap:
+                    - AWSEBOptions
+                    - options
+                    - AWSEBHealthdEndpoint
+                  - "\""
+                  - "}"
+              group: root
+            "/opt/elasticbeanstalk/config/healthd/healthdgroupid":
+              mode: '000440'
+              owner: root
+              content:
+                Fn::Join:
+                - ''
+                - - "{"
+                  - '"groupId":'
+                  - "\""
+                  - Fn::FindInMap:
+                    - AWSEBOptions
+                    - options
+                    - AWSEBHealthdGroupId
+                  - "\""
+                  - "}"
+              group: root
+            "/opt/elasticbeanstalk/config/platformassetsurl":
+              mode: '000440'
+              owner: root
+              content:
+                Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - platformAssetsUrl
+              group: root
+            "/opt/elasticbeanstalk/config/platformconfig/packages.json":
+              mode: '000440'
+              owner: root
+              source: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/configs/packages.json
+              group: root
+            "/opt/elasticbeanstalk/config/ebenvinfo/region":
+              mode: '000440'
+              owner: root
+              content:
+                Ref: AWS::Region
+              group: root
+          commands:
+            clearbackupfiles:
+              command: cd /opt/elasticbeanstalk/config && find . -name "*.bak" -type
+                f -delete
+        Hook-PreAppDeploy:
+          commands:
+            hooks:
+              command: echo place holder
+        InfoTask-SystemTailLogs:
+          commands:
+            systemtaillogs:
+              command:
+                Fn::Join:
+                - ''
+                - - 'tailLogs.py --conf-path ''/opt/elasticbeanstalk/tasks/systemtaillogs.d/*''
+                    --location-prefix '
+                  - Fn::FindInMap:
+                    - EnvironmentInfoTasks
+                    - systemtail
+                    - LocationPrefix
+        Infra-WriteSystemTailLogsConf:
+          files:
+            "/opt/elasticbeanstalk/tasks/systemtaillogs.d/eb-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-cfn-init.log"
+                  - "/var/log/eb-tools.log"
+                  - "/var/log/eb-publish-logs.log"
+                  - "/var/log/eb-commandprocessor.log"
+                  - "/var/log/eb-activity.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/systemtaillogs.d/eb-version-deployment.conf":
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/eb-version-deployment.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/systemtaillogs.d/cfn-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cfn-hup.log"
+                  - "/var/log/cfn-init.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/systemtaillogs.d/system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cron"
+                  - "/var/log/messages"
+                  - "/var/log/yum.log"
+                  - ''
+            "/opt/elasticbeanstalk/tasks/systemtaillogs.d/cloud-init-system.conf":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - "\n"
+                - - "/var/log/cloud-init.log"
+                  - ''
+        Infra-PatchInstance:
+          files:
+            "/opt/elasticbeanstalk/bin/patch_instance":
+              mode: '000750'
+              owner: root
+              source:
+                Fn::Select:
+                - 0
+                - Fn::FindInMap:
+                  - AWSEBOptions
+                  - options
+                  - ebpatchscripturl
+              group: root
+          commands:
+            01executepatch:
+              command: "/opt/elasticbeanstalk/bin/patch_instance"
+        Infra-InstallContainerHooksPkg:
+          commands:
+            01download_container_hooks:
+              command:
+                Fn::Join:
+                - ''
+                - - curl -sS --retry 3 '
+                  - Ref: HooksPkgUrl
+                  - "' -o /tmp/hooks.tar.gz"
+            03cleanup:
+              command: rm -f /tmp/hooks.tar.gz
+            00mkdir:
+              command: mkdir -p /opt/elasticbeanstalk
+            02install_container_hooks:
+              command: tar zxf /tmp/hooks.tar.gz --no-same-owner --no-same-permission
+                -C /opt/elasticbeanstalk
+        Infra-WritePublishLogsCron:
+          files:
+            "/etc/cron.d/publishlogs":
+              mode: '000644'
+              content:
+                Fn::Join:
+                - ''
+                - - SHELL=/bin/bash
+                  - "\n"
+                  - PATH=/sbin:/bin:/usr/sbin:/usr/bin
+                  - "\n"
+                  - MAILTO=""
+                  - "\n"
+                  - HOME=/
+                  - "\n"
+                  - '10,30,50 * * * * root '
+                  - 'publishLogs.py --de-dupe --conf-path ''/opt/elasticbeanstalk/tasks/publishlogs.d/*''
+                    --location-prefix '
+                  - Fn::FindInMap:
+                    - EnvironmentInfoTasks
+                    - publish
+                    - LocationPrefix
+                  - " --num-concurrent 2"
+                  - "\n"
+                  - '05,25,45 * * * * root '
+                  - clearStaleLogPublishingRecords.py
+                  - "\n"
+        Infra-WriteApplication1:
+          commands:
+            01mkdir:
+              command: rm -rf /opt/elasticbeanstalk/deploy/appsource/; mkdir -p /opt/elasticbeanstalk/deploy/appsource/
+        configSets:
+          Infra-WriteTailLogsConf:
+          - Infra-WriteTailLogsConf
+          Infra-WriteBundleLogsConf:
+          - Infra-WriteBundleLogsConf
+          InfoTask-TailLogs:
+          - InfoTask-TailLogs
+          InfoTask-BundleLogs:
+          - InfoTask-BundleLogs
+          _OnInstanceReboot:
+          - AWSEBBaseConfig
+          _AppInstall:
+          - prebuild_0_Test_App
+          - prebuild_1_Test_App
+          - Hook-PreAppDeploy
+          Infra-EmbeddedPreBuild:
+          - prebuild_0_Test_App
+          - prebuild_1_Test_App
+          Hook-PreAppDeploy:
+          - Hook-PreAppDeploy
+          InfoTask-SystemTailLogs:
+          - InfoTask-SystemTailLogs
+          Infra-WriteSystemTailLogsConf:
+          - Infra-WriteSystemTailLogsConf
+          _OnInstanceBoot:
+          - AWSEBBaseConfig
+          - AWSEBCfnHupEndpointOverride
+          Infra-EmbeddedPostBuild: []
+          Infra-WritePublishLogsCron:
+          - Infra-WritePublishLogsCron
+          Infra-WriteApplication1:
+          - Infra-WriteApplication1
+          Infra-WriteApplication2:
+          - Infra-WriteApplication2
+          Infra-WritePublishLogsConf:
+          - Infra-WritePublishLogsConf
+          _Infra-PatchInstance:
+          - Infra-PatchInstance
+        Infra-WriteApplication2:
+          files:
+            "/opt/elasticbeanstalk/bin/download_source_bundle":
+              owner: root
+              mode: '000750'
+              source:
+                Fn::Select:
+                - 0
+                - Fn::FindInMap:
+                  - AWSEBOptions
+                  - options
+                  - downloadSourceBundleScriptLocation
+              group: root
+          commands:
+            01downloadVersion:
+              command: "/opt/elasticbeanstalk/bin/download_source_bundle"
+            02deleteVersionDownloadScriptFile:
+              command: rm /opt/elasticbeanstalk/bin/download_source_bundle
+        Infra-WritePublishLogsConf:
+          files: {}
+      AWS::ElasticBeanstalk::Ext:
+        _AppSourceUrlFileContent:
+          url:
+            Ref: AppSource
+        _TriggersConfig:
+          configDeploy:
+            _Command: CMD-ConfigDeploy
+            _WatchGroups:
+            - _TriggerConfigDeployment
+          applicationDeploy:
+            _Command: CMD-AppDeploy
+            _WatchGroups:
+            - _TriggerAppDeployment
+        _ParameterTriggers:
+          _TriggerConfigDeployment:
+          - EnvironmentVariables
+          - InstancePort
+          - LogPublicationControl
+          - XRayEnabled
+          - DocumentRoot
+          - MemoryLimit
+          - ZlibOutputCompression
+          - AllowUrlFopen
+          - DisplayErrors
+          - MaxExecutionTime
+          - ComposerOptions
+          - ProxyStaticFiles
+          - ProxyServer
+          _TriggerAppDeployment:
+          - AppSource
+        _ContainerConfigFileContent:
+          container:
+            static_files:
+              Ref: ProxyStaticFiles
+            proxy_server:
+              Ref: ProxyServer
+            log_group_name_prefix: "/aws/elasticbeanstalk"
+            instance_port:
+              Ref: InstancePort
+            xray_enabled:
+              Ref: XRayEnabled
+            default_log_list:
+            - "/var/log/nginx/access.log"
+            - "/var/log/nginx/error.log"
+            - "/var/log/httpd/access_log"
+            - "/var/log/httpd/error_log"
+            common_log_list:
+            - "/var/log/eb-engine.log"
+            - "/var/log/eb-hooks.log"
+            environment_name:
+              Ref: AWSEBEnvironmentName
+          optionsettings:
+            aws:elasticbeanstalk:container:php:phpini:
+              display_errors:
+                Ref: DisplayErrors
+              document_root:
+                Ref: DocumentRoot
+              composer_options:
+                Ref: ComposerOptions
+              allow_url_fopen:
+                Ref: AllowUrlFopen
+              zlib_output_compression:
+                Ref: ZlibOutputCompression
+              memory_limit:
+                Ref: MemoryLimit
+              max_execution_time:
+                Ref: MaxExecutionTime
+            aws:elasticbeanstalk:application:environment:
+              Ref: EnvironmentVariables
+            aws:elasticbeanstalk:hostmanager:
+              LogPublicationControl:
+                Ref: LogPublicationControl
+            aws:elasticbeanstalk:environment:proxy:
+              StaticFiles:
+                Ref: ProxyStaticFiles
+            aws:elasticbeanstalk:healthreporting:system:
+              SystemType: enhanced
+          system:
+            LogPublicationControl:
+              Ref: LogPublicationControl
+            AWSEBAgentId:
+              Ref: AWSEBAgentId
+            AWSEBReferrerId:
+              Ref: AWSEBReferrerId
+          commands:
+            CMD-TailLogs:
+              persistent_configuration: true
+              stages:
+              - name: TailLogs
+                actions:
+                - name: TailLogs
+                  type: sh
+                  value: tailLogs.py --concatenate --conf-path '/opt/elasticbeanstalk/tasks/taillogs.d/*'
+                    --location-prefix 'resources/environments/logs/tail/'
+            CMD-PreInit:
+              refresh_manifest: true
+              stages:
+              - name: PreInitStage0
+                actions:
+                - name: DownloadSourceBundle
+                  type: infra
+                  value: "/opt/elasticbeanstalk/bin/download-source-bundle"
+                - name: PreInitHook
+                  type: hook
+                  value: preinit
+            CMD-Startup:
+              stages:
+              - name: StartupStage0
+                actions:
+                - name: HealthdLogRotation
+                  type: infra
+                  value: infra-healthd_log_rotation.rb
+                - name: HealthdHTTPDLogging
+                  type: infra
+                  value: infra-healthd_httpd_logging.rb
+                - name: HealthdNginxLogging
+                  type: infra
+                  value: infra-healthd_nginx_logging.rb
+                - name: EbExtensionPreBuild
+                  type: infra
+                  value: infra-embedded_prebuild.rb
+                - name: AppDeployPreHook
+                  type: hook
+                  value: appdeploy/pre
+                - name: EbExtensionPostBuild
+                  type: infra
+                  value: infra-embedded_postbuild.rb
+                - name: InfraCleanEbExtension
+                  type: infra
+                  value: infra-clean_ebextensions_dir.rb
+              - name: StartupStage1
+                actions:
+                - name: AppDeployEnactHook
+                  type: hook
+                  value: appdeploy/enact
+                - name: AppDeployPostHook
+                  type: hook
+                  value: appdeploy/post
+                - name: PostInitHook
+                  type: hook
+                  value: postinit
+            CMD-PublishLogs:
+              persistent_configuration: true
+              stages:
+              - name: PublishLogs
+                actions:
+                - name: PublishLogs
+                  type: sh
+                  value: publishLogs.py --de-dupe --conf-path '/opt/elasticbeanstalk/tasks/publishlogs.d/*'
+                    --location-prefix 'resources/environments/logs/publish/' --num-concurrent
+                    2
+            CMD-ImmutableDeploymentFlip:
+              persistent_configuration: true
+              stages:
+              - name: ImmutableDeploymentFlip
+                actions:
+                - name: FlipCommandRegistration
+                  type: infra
+                  value: infra-reregister-cfn-hup.rb
+            CMD-AppDeploy:
+              refresh_manifest: true
+              stages:
+              - name: AppDeployStage0
+                actions:
+                - name: DownloadSourceBundle
+                  type: infra
+                  value: "/opt/elasticbeanstalk/bin/download-source-bundle"
+                - name: EbExtensionPreBuild
+                  type: infra
+                  value: infra-embedded_prebuild.rb
+                - name: AppDeployPreHook
+                  type: hook
+                  value: appdeploy/pre
+                - name: EbExtensionPostBuild
+                  type: infra
+                  value: infra-embedded_postbuild.rb
+                - name: InfraCleanEbextension
+                  type: infra
+                  value: infra-clean_ebextensions_dir.rb
+              - name: AppDeployStage1
+                actions:
+                - name: AppDeployEnactHook
+                  type: hook
+                  value: appdeploy/enact
+                - name: AppDeployPostHook
+                  type: hook
+                  value: appdeploy/post
+            CMD-BundleLogs:
+              persistent_configuration: true
+              stages:
+              - name: BundleLogs
+                actions:
+                - name: BundleLogs
+                  type: sh
+                  value: bundleLogs.py --conf-path '/opt/elasticbeanstalk/tasks/bundlelogs.d/*'
+                    --location-prefix 'resources/environments/logs/bundle/'
+            CMD-SelfStartup:
+              stages:
+              - name: StartupStage0
+                actions:
+                - name: HealthdLogRotation
+                  type: infra
+                  value: infra-healthd_log_rotation.rb
+                - name: HealthdHTTPDLogging
+                  type: infra
+                  value: infra-healthd_httpd_logging.rb
+                - name: HealthdNginxLogging
+                  type: infra
+                  value: infra-healthd_nginx_logging.rb
+                - name: EbExtensionPreBuild
+                  type: infra
+                  value: infra-embedded_prebuild.rb
+                - name: AppDeployPreHook
+                  type: hook
+                  value: appdeploy/pre
+                - name: EbExtensionPostBuild
+                  type: infra
+                  value: infra-embedded_postbuild.rb
+                - name: InfraCleanEbextension
+                  type: infra
+                  value: infra-clean_ebextensions_dir.rb
+              - name: StartupStage1
+                actions:
+                - name: AppDeployEnactHook
+                  type: hook
+                  value: appdeploy/enact
+                - name: AppDeployPostHook
+                  type: hook
+                  value: appdeploy/post
+                - name: PostInitHook
+                  type: hook
+                  value: postinit
+            CMD-SystemTailLogs:
+              persistent_configuration: true
+              stages:
+              - name: SystemTailLogs
+                actions:
+                - name: SystemTailLogs
+                  type: sh
+                  value: tailLogs.py --concatenate --conf-path '/opt/elasticbeanstalk/tasks/systemtaillogs.d/*'
+                    --location-prefix 'resources/environments/logs/systemtail/'
+            CMD-RestartAppServer:
+              stages:
+              - name: RestartAppServerStage0
+                actions:
+                - name: RestartAppServerPreHook
+                  type: hook
+                  value: restartappserver/pre
+              - name: RestartAppServerStage1
+                actions:
+                - name: RestartAppServerEnactHook
+                  type: hook
+                  value: restartappserver/enact
+                - name: RestartAppServerPostHook
+                  type: hook
+                  value: restartappserver/post
+            CMD-ConfigDeploy:
+              refresh_manifest: true
+              stages:
+              - name: ConfigDeployStage0
+                actions:
+                - name: ConfigDeployPreHook
+                  type: hook
+                  value: configdeploy/pre
+              - name: ConfigDeployStage1
+                actions:
+                - name: ConfigDeployEnactHook
+                  type: hook
+                  value: configdeploy/enact
+                - name: ConfigDeployPostHook
+                  type: hook
+                  value: configdeploy/post
+        _LaunchS3URL: https://elasticbeanstalk-us-east-1.s3.amazonaws.com/environments/ccb02942-a2ca-46cc-98d4-7ab48c142882/launch_control?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20220321T031345Z&X-Amz-SignedHeaders=host&X-Amz-Expires=43200&X-Amz-Credential=AKIAJOBAZGDDMSAZSDSQ%2F20220321%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=08cac22ac3fbcf7768902e8e717d8339998e35755ad19415c0a1c8a9d7d5f8d3
+        _EBExtensionFilePaths:
+          prebuild_0_Test_App: ".ebextensions/logging.config"
+          prebuild_1_Test_App: cron.yaml
+        _API:
+          _Commands:
+            CMD-TailLogs:
+              _Stages:
+                01_enact:
+                - InfoTask-TailLogs
+            CMD-Startup:
+              _RunStaged: 'true'
+              _Stages:
+                01_pre: []
+                02_enact: []
+            CMD-AppDeploy:
+              _RunStaged: 'true'
+              _Stages:
+                01_pre: []
+                02_enact: []
+            CMD-BundleLogs:
+              _Stages:
+                01_enact:
+                - InfoTask-BundleLogs
+            CMD-SystemTailLogs:
+              _Stages:
+                01_enact:
+                - InfoTask-SystemTailLogs
+            CMD-PatchInstance:
+              _Stages:
+                01_enact:
+                - _Infra-PatchInstance
+            CMD-RestartAppServer:
+              _RunStaged: 'false'
+              _Stages:
+                01_enact: []
+                02_enact: []
+            CMD-ConfigDeploy:
+              _RunStaged: 'true'
+              _Stages:
+                01_pre: []
+                02_enact: []
+        AvailabilityZoneCount: Any
+        InstanceSignalURL:
+          Ref: AWSEBInstanceLaunchWaitHandle
+        _EnvironmentInfoTaskMapping: EnvironmentInfoTasks
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: AWSEBBeanstalkMetadata
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
+    Properties:
+      MinSize: '1'
+      CapacityRebalance: false
+      TargetGroupARNs:
+      - Ref: AWSEBV2LoadBalancerTargetGroup
+      AvailabilityZones:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1c
+      Cooldown: '360'
+      LaunchTemplate:
+        Version:
+          Fn::GetAtt:
+          - AWSEBEC2LaunchTemplate
+          - LatestVersionNumber
+        LaunchTemplateId:
+          Ref: AWSEBEC2LaunchTemplate
+      MaxSize: '4'
+      Tags:
+      - Value:
+          Ref: AWSEBEnvironmentName
+        Key: elasticbeanstalk:environment-name
+        PropagateAtLaunch: true
+      - Value:
+          Ref: AWSEBEnvironmentName
+        Key: Name
+        PropagateAtLaunch: true
+      - Value:
+          Ref: AWSEBEnvironmentId
+        Key: elasticbeanstalk:environment-id
+        PropagateAtLaunch: true
+  AWSEBInstanceLaunchWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: AWSEBAutoScalingGroup
+    Properties:
+      Timeout: '900'
+      Count: '1'
+      Handle:
+        Ref: AWSEBInstanceLaunchWaitHandle
+  AWSEBAutoScalingScaleUpPolicy:
+    Properties:
+      ScalingAdjustment: '1'
+      AutoScalingGroupName:
+        Ref: AWSEBAutoScalingGroup
+      AdjustmentType: ChangeInCapacity
+    Type: AWS::AutoScaling::ScalingPolicy
+  AWSEBEC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        SecurityGroups:
+        - Ref: AWSEBSecurityGroup
+        MetadataOptions:
+          HttpPutResponseHopLimit: 1
+          HttpTokens: required
+        UserData:
+          Fn::Base64:
+            Fn::Join:
+            - ''
+            - - 'Content-Type: multipart/mixed; boundary="===============5189065377222898407=="'
+              - "\n"
+              - 'MIME-Version: 1.0'
+              - "\n"
+              - ''
+              - "\n"
+              - "--===============5189065377222898407=="
+              - "\n"
+              - 'Content-Type: text/cloud-config; charset="us-ascii"'
+              - "\n"
+              - 'MIME-Version: 1.0'
+              - "\n"
+              - 'Content-Transfer-Encoding: 7bit'
+              - "\n"
+              - 'Content-Disposition: attachment; filename="cloud-config.txt"'
+              - "\n"
+              - ''
+              - "\n"
+              - "#cloud-config"
+              - "\n"
+              - 'repo_upgrade: none'
+              - "\n"
+              - 'repo_releasever: '
+              - Fn::FindInMap:
+                - ContainerMeta
+                - AMIMeta
+                - RepoReleaseVersion
+              - "\n"
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - CloudConfigOptions
+              - "\n"
+              - ''
+              - "\n"
+              - "--===============5189065377222898407=="
+              - "\n"
+              - 'Content-Type: text/x-shellscript; charset="us-ascii"'
+              - "\n"
+              - 'MIME-Version: 1.0'
+              - "\n"
+              - 'Content-Transfer-Encoding: 7bit'
+              - "\n"
+              - 'Content-Disposition: attachment; filename="user-data.txt"'
+              - "\n\n"
+              - "#!/bin/bash"
+              - "\n"
+              - exec > >(tee -a /var/log/eb-cfn-init.log|logger -t [eb-cfn-init] -s
+                2>/dev/console) 2>&1
+              - "\n"
+              - echo [`date -u +"%Y-%m-%dT%H:%M:%SZ"`] Started EB User Data
+              - "\n"
+              - set -x
+              - "\n"
+              - "\n\n"
+              - 'function sleep_delay '
+              - "\n"
+              - "{"
+              - "\n"
+              - "  if (( $SLEEP_TIME < $SLEEP_TIME_MAX )); then "
+              - "\n"
+              - "    echo Sleeping $SLEEP_TIME"
+              - "\n"
+              - "    sleep $SLEEP_TIME  "
+              - "\n"
+              - "    SLEEP_TIME=$(($SLEEP_TIME * 2)) "
+              - "\n"
+              - "  else "
+              - "\n"
+              - "    echo Sleeping $SLEEP_TIME_MAX  "
+              - "\n"
+              - "    sleep $SLEEP_TIME_MAX  "
+              - "\n"
+              - "  fi"
+              - "\n"
+              - "}"
+              - "\n\n"
+              - "# Executing bootstrap script"
+              - "\n"
+              - SLEEP_TIME=10
+              - "\n"
+              - SLEEP_TIME_MAX=3600
+              - "\n"
+              - 'while true; do '
+              - "\n"
+              - "  curl "
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - UserDataScript
+              - " > /tmp/ebbootstrap.sh "
+              - "\n"
+              - "  RESULT=$?"
+              - "\n"
+              - '  if [[ "$RESULT" -ne 0 ]]; then '
+              - "\n"
+              - "    sleep_delay "
+              - "\n"
+              - "  else"
+              - "\n"
+              - "    SLEEP_TIME=2"
+              - "\n"
+              - "    /bin/bash /tmp/ebbootstrap.sh "
+              - "    '"
+              - Ref: AWSEBInstanceLaunchWaitHandle
+              - "'"
+              - "    '"
+              - Ref: AWS::StackId
+              - "'"
+              - "    '"
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - AWSEBHealthdGroupId
+              - "'"
+              - "    '"
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - AWSEBHealthdEndpoint
+              - "'"
+              - "    '"
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - HealthdProxyLogLocation
+              - "'"
+              - "    '"
+              - Fn::FindInMap:
+                - AWSEBOptions
+                - options
+                - platformAssetsUrl
+              - "'"
+              - "    '"
+              - Ref: AWS::Region
+              - "'"
+              - "\n"
+              - "    RESULT=$?"
+              - "\n"
+              - '    if [[ "$RESULT" -ne 0 ]]; then '
+              - "\n"
+              - "      sleep_delay "
+              - "\n"
+              - "    else "
+              - "\n"
+              - "      exit 0  "
+              - "\n"
+              - "    fi "
+              - "\n"
+              - "  fi "
+              - "\n"
+              - done
+              - "\n\n"
+              - "--===============5189065377222898407==-- "
+        ImageId:
+          Fn::FindInMap:
+          - AWSEBAWSRegionArch2AMI
+          - Ref: AWS::Region
+          - hvm
+        IamInstanceProfile:
+          Name: aws-elasticbeanstalk-ec2-role
+        InstanceType:
+          Ref: InstanceType
+        Monitoring:
+          Enabled: false
+  AWSEBCloudwatchAlarmHigh:
+    Properties:
+      AlarmActions:
+      - Ref: AWSEBAutoScalingScaleUpPolicy
+      MetricName: NetworkOut
+      ComparisonOperator: GreaterThanThreshold
+      Statistic: Average
+      AlarmDescription: ElasticBeanstalk Default Scale Up alarm
+      Period: '300'
+      Dimensions:
+      - Value:
+          Ref: AWSEBAutoScalingGroup
+        Name: AutoScalingGroupName
+      EvaluationPeriods: '1'
+      Namespace: AWS/EC2
+      Threshold: '6000000'
+    Type: AWS::CloudWatch::Alarm
+  AWSEBBeanstalkMetadata:
+    Metadata:
+      AWS::ElasticBeanstalk::Ext:
+        Parameters:
+          InstanceTypeFamily:
+            Ref: InstanceTypeFamily
+          LogPublicationControl:
+            Ref: LogPublicationControl
+          DocumentRoot:
+            Ref: DocumentRoot
+          InstancePort:
+            Ref: InstancePort
+          XRayEnabled:
+            Ref: XRayEnabled
+          DisplayErrors:
+            Ref: DisplayErrors
+          AWSEBEnvironmentId:
+            Ref: AWSEBEnvironmentId
+          HooksPkgUrl:
+            Ref: HooksPkgUrl
+          ZlibOutputCompression:
+            Ref: ZlibOutputCompression
+          AWSEBEnvironmentName:
+            Ref: AWSEBEnvironmentName
+          AWSEBReferrerId:
+            Ref: AWSEBReferrerId
+          AppSource:
+            Ref: AppSource
+          MaxExecutionTime:
+            Ref: MaxExecutionTime
+          ProxyServer:
+            Ref: ProxyServer
+          MemoryLimit:
+            Ref: MemoryLimit
+          EnvironmentVariables:
+            Ref: EnvironmentVariables
+          AllowUrlFopen:
+            Ref: AllowUrlFopen
+          AWSEBAgentId:
+            Ref: AWSEBAgentId
+          ComposerOptions:
+            Ref: ComposerOptions
+          InstanceType:
+            Ref: InstanceType
+          AWSEBEnvironmentBucket:
+            Ref: AWSEBEnvironmentBucket
+          ProxyStaticFiles:
+            Ref: ProxyStaticFiles
+      AWS::ElasticBeanstalk::Metadata:
+        EnvironmentId: e-5rmcwg3kwd
+        RequestId: 28b56c0b-116d-41a0-a78b-910ab8fe20e7
+        Version: 28b56c0b-116d-41a0-a78b-910ab8fe20e7
+        EnvironmentName: Testapp-env
+        DateUpdated: '2022-03-21T03:13:33'
+        DateCreated: '2022-03-21T03:13:33'
+        DeploymentVersion: 2
+        DateLastModified: '2022-03-21T03:13:45'
+        Name: e-5rmcwg3kwd
+    Type: AWS::CloudFormation::WaitConditionHandle
+  AWSEBV2LoadBalancerTargetGroup:
+    Properties:
+      HealthCheckIntervalSeconds: 15
+      VpcId: vpc-065740f91024a5ae2
+      HealthyThresholdCount: 3
+      HealthCheckPath: "/"
+      Port: 80
+      TargetGroupAttributes:
+      - Value: '20'
+        Key: deregistration_delay.timeout_seconds
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      HealthCheckTimeoutSeconds: 5
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  AWSEBCloudwatchAlarmLow:
+    Properties:
+      AlarmActions:
+      - Ref: AWSEBAutoScalingScaleDownPolicy
+      MetricName: NetworkOut
+      ComparisonOperator: LessThanThreshold
+      Statistic: Average
+      AlarmDescription: ElasticBeanstalk Default Scale Down alarm
+      Period: '300'
+      Dimensions:
+      - Value:
+          Ref: AWSEBAutoScalingGroup
+        Name: AutoScalingGroupName
+      EvaluationPeriods: '1'
+      Namespace: AWS/EC2
+      Threshold: '2000000'
+    Type: AWS::CloudWatch::Alarm
+Description: 'AWS Elastic Beanstalk environment (Name: ''Testapp-env''  Id: ''e-5rmcwg3kwd'')'
+Mappings:
+  ContainerMetaARM:
+    AMIMeta:
+      RepoReleaseVersion: '2.0'
+      Owner: amazon
+      AMIVersion: 2.0.20220207
+      AMIName: amzn2-ami-hvm-2.0.20220207.1-arm64-gp2
+  AWSEBAWSRegionArch2AMIBase:
+    us-east-1:
+      pv: ''
+      graphics: ''
+      gpu: ''
+      hvm: ami-038b3df3312ddf25d
+  AWSEBOptions:
+    options:
+      OptionDefinitionOverrideEnabled: true
+      platformAssetsUrl: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540
+      CloudConfigOptions: |-
+        cloud_final_modules:
+         - [scripts-user, always]
+      DefaultsScript: "/opt/elasticbeanstalk/config/private/containercommandsupport/container-defaults.sh"
+      LeaderTestScript: "/opt/elasticbeanstalk/config/private/containercommandsupport/leader-test.sh"
+      AWSEBHealthdGroupId: 4694c7a6-dd39-4790-ab04-2c3f671ab210
+      HaltStartupCommandsOnFailure: 'true'
+      downloadSourceBundleScriptLocation:
+      - https://s3.amazonaws.com/elasticbeanstalk-env-resources-us-east-1/eb_patching_resources/download_source_bundle.py
+      UserDataScript: https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_php80_amazon_linux_2_1.0.1477.0_20220222204540/lib/UserDataScript.sh
+      DefaultSSHPort: '22'
+      LaunchType: Migration
+      ProxyServer: nginx
+      FastVersionDeployment: 'true'
+      AWSEBHealthdEndpoint: https://elasticbeanstalk-health.us-east-1.amazonaws.com
+      ServiceRole: arn:aws:iam::134337769473:role/aws-elasticbeanstalk-service-role
+      EmbeddedConfigsetsEnabled: 'true'
+      EBSNSTopicArn: ''
+      HealthdProxyLogLocation: ''
+      CommandBasedLeaderElection: 'true'
+      nodeploymentOnStartup: 'true'
+      ebpatchscripturl:
+      - https://s3.amazonaws.com/elasticbeanstalk-env-resources-us-east-1/eb_patching_resources/patch_instance.py
+  AWSEBAWSRegionArch2AMI:
+    us-east-1:
+      pv: ''
+      graphics: ''
+      gpu: ''
+      hvm: ami-05fef6002522eb5fe
+  EnvironmentInfoTasks:
+    systemtail:
+      LocationPrefix: resources/environments/logs/systemtail/
+      AutoClean: 'true'
+      CommandName: CMD-SystemTailLogs
+    tail:
+      LocationPrefix: resources/environments/logs/tail/
+      AutoClean: 'true'
+      CommandName: CMD-TailLogs
+    publish:
+      LocationPrefix: resources/environments/logs/publish/
+    bundle:
+      LocationPrefix: resources/environments/logs/bundle/
+      AutoClean: 'true'
+      CommandName: CMD-BundleLogs
+  AWSEBAWSRegionArch2AMIBaseARM:
+    us-east-1:
+      pv: ''
+      graphics: ''
+      gpu: ''
+      hvm: ami-0a200d3f40a2f6ca0
+  AWSEBAWSRegionArch2AMIARM:
+    us-east-1:
+      pv: ''
+      graphics: ''
+      gpu: ''
+      hvm: ami-0bcdd2420c517a7a3
+  ContainerMeta:
+    AMIMeta:
+      RepoReleaseVersion: '2.0'
+      Owner: amazon
+      AMIVersion: 2.0.20220207
+      AMIName: amzn2-ami-hvm-2.0.20220207.1-x86_64-gp2
